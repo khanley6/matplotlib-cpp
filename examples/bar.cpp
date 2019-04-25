@@ -5,11 +5,11 @@
 #include "../matplotlibcpp.h"
 namespace plt = matplotlibcpp;
 
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+
 int main(int argc, char **argv) {
-    std::vector<int> test_data;
-    for (int i = 0; i < 20; i++) {
-        test_data.push_back(i);
-    }
+    xt::xtensor<double, 1> test_data = xt::arange<double>(20);
 
     plt::bar(test_data);
     plt::show();

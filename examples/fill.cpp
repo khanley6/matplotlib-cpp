@@ -5,13 +5,14 @@
 using namespace std;
 namespace plt = matplotlibcpp;
 
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+
 // Example fill plot taken from:
 // https://matplotlib.org/gallery/misc/fill_spiral.html
 int main() {
     // Prepare data.
-    vector<double> theta;
-    for (double d = 0; d < 8 * M_PI; d += 0.1)
-        theta.push_back(d);
+    xt::xtensor<double, 1> theta = xt::arange<double>(0, 8*xt::numeric_constants<double>::PI, 0.1);
 
     const int a = 1;
     const double b = 0.2;

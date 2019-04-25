@@ -2,17 +2,20 @@
 #include <cmath>
 #include "../matplotlibcpp.h"
 
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+
 namespace plt = matplotlibcpp;
 
 int main()
 {
 	int n = 1000;
-	std::vector<double> x, y, z;
+    xt::xtensor<double,1> x, y, z;
 
 	for(int i=0; i<n; i++) {
-		x.push_back(i*i);
-		y.push_back(sin(2*M_PI*i/360.0));
-		z.push_back(log(i));
+        x = xt::concatenate(xt::xtuple(x, xt::xtensor<double,1>{i*i}));
+        x = xt::concatenate(xt::xtuple(x, xt::xtensor<double,1>{sin(2*M_PI*i/360.0)}));
+        x = xt::concatenate(xt::xtuple(x, xt::xtensor<double,1>{log(i)}));
 
 		if (i % 10 == 0) {
 			// Clear previous plot

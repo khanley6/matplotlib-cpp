@@ -5,6 +5,9 @@
 using namespace std;
 namespace plt = matplotlibcpp;
 
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+
 int main() 
 {
 	// plot(y) - the x-coordinates are implicitly set to [0,1,...,n)
@@ -12,12 +15,10 @@ int main()
 	
 	// Prepare data for parametric plot.
 	int n = 5000; // number of data points
-	vector<double> x(n),y(n); 
-	for(int i=0; i<n; ++i) {
-		double t = 2*M_PI*i/n;
-		x.at(i) = 16*sin(t)*sin(t)*sin(t);
-		y.at(i) = 13*cos(t) - 5*cos(2*t) - 2*cos(3*t) - cos(4*t);
-	}
+    xt::xtensor<double, 1> i = xt::linspace<double>(0, (n-1), n);
+    xt::xtensor<double, 1> t = 2 * xt::numeric_constants<double>::PI * i / n;
+    xt::xtensor<double, 1> x = 16*xt::sin(t)*xt::sin(t)*xt::sin(t);
+    xt::xtensor<double, 1> y = 13*xt::cos(t) - 5*xt::cos(2*t) - 2*xt::cos(3*t) - xt::cos(4*t);
 
 	// plot() takes an arbitrary number of (x,y,format)-triples. 
 	// x must be iterable (that is, anything providing begin(x) and end(x)),

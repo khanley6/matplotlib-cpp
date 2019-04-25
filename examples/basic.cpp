@@ -3,21 +3,25 @@
 #include <cmath>
 #include "../matplotlibcpp.h"
 
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+
 namespace plt = matplotlibcpp;
 
 int main() 
 {
     // Prepare data.
     int n = 5000;
-    std::vector<double> x(n), y(n), z(n), w(n,2);
-    for(int i=0; i<n; ++i) {
-        x.at(i) = i*i;
-        y.at(i) = sin(2*M_PI*i/360.0);
-        z.at(i) = log(i);
-    }
+    xt::xtensor<double, 1> i = xt::linspace<double>(0, (n-1), n);
+    std::array<std::size_t,1> shape{static_cast<std::size_t>(n)};
+    xt::xtensor<double, 1> w(shape);
+    w.fill(2.0);
+    xt::xtensor<double, 1> x = xt::square(i);
+    xt::xtensor<double, 1> y = xt::sin(2 * xt::numeric_constants<double>::PI * i / 360.0);
+    xt::xtensor<double, 1> z = xt::log(i);
     
     // Set the size of output image = 1200x780 pixels
-    plt::figure_size(1200, 780);
+    //plt::figure_size(1200, 780);
 
     // Plot line from given x and y data. Color is selected automatically.
     plt::plot(x, y);
@@ -37,8 +41,9 @@ int main()
     // Enable legend.
     plt::legend();
 
+    plt::show();
     // save figure
-    const char* filename = "./basic.png";
-    std::cout << "Saving result to " << filename << std::endl;;
-    plt::save(filename);
+    //const char* filename = "./basic.png";
+    //std::cout << "Saving result to " << filename << std::endl;;
+    //plt::save(filename);
 }

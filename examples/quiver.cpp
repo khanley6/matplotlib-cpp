@@ -1,10 +1,14 @@
 #include "../matplotlibcpp.h"
 
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+
 namespace plt = matplotlibcpp;
 
 int main()
 {
     // u and v are respectively the x and y components of the arrows we're plotting
+    std::array<std::size_t, 1> shape{121};
     std::vector<int> x, y, u, v;
     for (int i = -5; i <= 5; i++) {
         for (int j = -5; j <= 5; j++) {
