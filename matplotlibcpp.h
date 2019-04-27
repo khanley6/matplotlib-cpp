@@ -656,9 +656,7 @@ bool bar(E&& y, std::string ec = "black", std::string ls = "-", double lw = 1.0,
 {
     PyObject* yarray = get_array(std::forward<E>(y));
 
-    std::vector<int> x;
-    for (int i = 0; i < y.size(); i++)
-        x.push_back(i);
+    xt::xtensor<double, 1> x = xt::arange<double>(y.size());
 
     PyObject* xarray = get_array(x);
 
@@ -1040,7 +1038,8 @@ bool named_loglog(const std::string& name, E1&& x, E2&& y, const std::string& fo
 template<class E>
 bool plot(E&& y, const std::string& format = "")
 {
-    return plot(xt::arange(y.size()),y,format);
+    xt::xtensor<double, 1> x = xt::arange(y.size());
+    return plot(x, y, format);
 }
 
 template<class E>
@@ -1113,6 +1112,8 @@ inline bool fignum_exists(long number)
 
 inline void figure_size(size_t w, size_t h)
 {
+    detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
+
     const size_t dpi = 100;
     PyObject* size = PyTuple_New(2);
     PyTuple_SetItem(size, 0, PyFloat_FromDouble((double)w / dpi));
@@ -1305,6 +1306,8 @@ inline void yticks(E&& ticks, const std::map<std::string, std::string>& keywords
 
 inline void subplot(long nrows, long ncols, long plot_number)
 {
+    detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
+
     // construct positional args
     PyObject* args = PyTuple_New(3);
     PyTuple_SetItem(args, 0, PyFloat_FromDouble(nrows));
@@ -1691,16 +1694,21 @@ bool plot(const A& a, const B& b, const std::string& format, Args... args)
  * This group of plot() functions is needed to support initializer lists, i.e. calling
  *    plot( {1,2,3,4} )
  */
-inline bool plot(const std::vector<double>& x, const std::vector<double>& y, const std::string& format = "") {
-    return plot(xt::adapt(x),xt::adapt(y),format);
+inline bool plot(std::vector<double> x, std::vector<double> y, const std::string& format = "") {
+    xt::xtensor<double, 1> x_adapt = xt::adapt(x);
+    xt::xtensor<double, 1> y_adapt = xt::adapt(y);
+    return plot(std::move(x_adapt), std::move(y_adapt), format);
 }
 
-inline bool plot(const std::vector<double>& y, const std::string& format = "") {
-    return plot(xt::adapt(y),format);
+inline bool plot(std::vector<double> y, const std::string& format = "") {
+    xt::xtensor<double, 1> y_adapt = xt::adapt(y);
+    return plot(std::move(y_adapt), format);
 }
 
-inline bool plot(const std::vector<double>& x, const std::vector<double>& y, const std::map<std::string, std::string>& keywords) {
-    return plot(xt::adapt(x),xt::adapt(y),keywords);
+inline bool plot(std::vector<double> x, std::vector<double> y, const std::map<std::string, std::string>& keywords) {
+    xt::xtensor<double, 1> x_adapt = xt::adapt(x);
+    xt::xtensor<double, 1> y_adapt = xt::adapt(y);
+    return plot(std::move(x_adapt), std::move(y_adapt), keywords);
 }
 
 /*

@@ -13,9 +13,9 @@ int main()
     xt::xtensor<double,1> x, y, z;
 
 	for(int i=0; i<n; i++) {
-        x = xt::concatenate(xt::xtuple(x, xt::xtensor<double,1>{i*i}));
-        x = xt::concatenate(xt::xtuple(x, xt::xtensor<double,1>{sin(2*M_PI*i/360.0)}));
-        x = xt::concatenate(xt::xtuple(x, xt::xtensor<double,1>{log(i)}));
+        x = xt::concatenate(xt::xtuple(x, xt::xtensor<double,1>{static_cast<double>(i*i)}));
+        y = xt::concatenate(xt::xtuple(y, xt::xtensor<double,1>{sin(2*M_PI*i/360.0)}));
+        z = xt::concatenate(xt::xtuple(z, xt::xtensor<double,1>{log(i)}));
 
 		if (i % 10 == 0) {
 			// Clear previous plot

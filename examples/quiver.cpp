@@ -9,13 +9,15 @@ int main()
 {
     // u and v are respectively the x and y components of the arrows we're plotting
     std::array<std::size_t, 1> shape{121};
-    std::vector<int> x, y, u, v;
+    xt::xtensor<int,1> x(shape), y(shape), u(shape), v(shape);
+    std::size_t idx = 0;
     for (int i = -5; i <= 5; i++) {
         for (int j = -5; j <= 5; j++) {
-            x.push_back(i);
-            u.push_back(-i);
-            y.push_back(j);
-            v.push_back(-j);
+            x[idx] = (i);
+            u[idx] = (-i);
+            y[idx] = (j);
+            v[idx] = (-j);
+            ++idx;
         }
     }
 

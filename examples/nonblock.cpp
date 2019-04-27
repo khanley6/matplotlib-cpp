@@ -1,14 +1,12 @@
 #define _USE_MATH_DEFINES
+#include <iostream>
 #include <cmath>
 #include "../matplotlibcpp.h"
-
-namespace plt = matplotlibcpp;
 
 #include <xtensor/xbuilder.hpp>
 #include <xtensor/xtensor.hpp>
 
-using namespace matplotlibcpp;
-using namespace std;
+namespace plt = matplotlibcpp;
 
 int main()
 {
@@ -44,6 +42,6 @@ int main()
 
     plt::show(false);
 
-    cout << "matplotlibcpp::show() is working in an non-blocking mode" << endl;
-    getchar();
+    std::cout << "matplotlibcpp::show() is working in an non-blocking mode" << std::endl;
+    std::getchar();
 }

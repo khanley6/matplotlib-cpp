@@ -2,6 +2,9 @@
 #include <cmath>
 #include "../matplotlibcpp.h"
 
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+
 using namespace std;
 namespace plt = matplotlibcpp;
 
@@ -9,12 +12,13 @@ int main()
 {
     // Prepare data
 	int n = 500;
-	std::vector<double> x(n), y(n), z(n), w(n,2);
-	for(int i=0; i<n; ++i) {
-		x.at(i) = i;
-		y.at(i) = sin(2*M_PI*i/360.0);
-		z.at(i) = 100.0 / i;
-	}
+    xt::xtensor<double, 1> i = xt::linspace<double>(0, (n-1), n);
+    std::array<std::size_t,1> shape{static_cast<std::size_t>(n)};
+    xt::xtensor<double, 1> w(shape);
+    w.fill(2.0);
+    xt::xtensor<double, 1> x = xt::square(i);
+    xt::xtensor<double, 1> y = xt::sin(2 * xt::numeric_constants<double>::PI * i / 360.0);
+    xt::xtensor<double, 1> z = xt::log(i);
 
     // Set the "super title"
     plt::suptitle("My plot");
