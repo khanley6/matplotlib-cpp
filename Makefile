@@ -1,14 +1,15 @@
 #examples: minimal basic modern animation nonblock xkcd quiver bar surface fill_inbetween fill update
-examples: minimal basic animation nonblock xkcd quiver bar fill_inbetween
+examples: minimal basic animation nonblock xkcd quiver bar surface fill_inbetween fill update
 
 minimal: examples/minimal.cpp matplotlibcpp.h
 	cd examples && g++ -DWITHOUT_NUMPY minimal.cpp -I/usr/include/python3.7m -lpython3.7m -o minimal -std=c++17
 
 basic: examples/basic.cpp matplotlibcpp.h
+#all: examples/basic.cpp matplotlibcpp.h
 	cd examples && g++ basic.cpp -I/usr/include/python3.7m -I/usr/lib/python3.7/site-packages/numpy/core/include -lpython3.7m -o basic -std=c++17
 
-#modern: examples/modern.cpp matplotlibcpp.h
-#	cd examples && g++ modern.cpp -I/usr/include/python3.7m -I/usr/lib/python3.7/site-packages/numpy/core/include -lpython3.7m -o modern -std=c++17
+modern: examples/modern.cpp matplotlibcpp.h
+	cd examples && g++ modern.cpp -I/usr/include/python3.7m -I/usr/lib/python3.7/site-packages/numpy/core/include -lpython3.7m -o modern -std=c++17
 
 animation: examples/animation.cpp matplotlibcpp.h
 	cd examples && g++ animation.cpp -I/usr/include/python3.7m -I/usr/lib/python3.7/site-packages/numpy/core/include -lpython3.7m -o animation -std=c++17

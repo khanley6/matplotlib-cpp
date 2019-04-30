@@ -2,11 +2,11 @@
 #include "../matplotlibcpp.h"
 #include <cmath>
 
-using namespace std;
-namespace plt = matplotlibcpp;
-
 #include <xtensor/xbuilder.hpp>
 #include <xtensor/xtensor.hpp>
+
+using namespace xt::placeholders;
+namespace plt = matplotlibcpp;
 
 // Example fill plot taken from:
 // https://matplotlib.org/gallery/misc/fill_spiral.html
@@ -18,22 +18,13 @@ int main() {
     const double b = 0.2;
 
     for (double dt = 0; dt < 2 * M_PI; dt += M_PI/2.0) {
-        xt::xtensor<double, 1> x1 = xt::zeros_like(theta);
-        xt::xtensor<double, 1> y1 = xt::zeros_like(theta);
-        xt::xtensor<double, 1> x2 = xt::zeros_like(theta);
-        xt::xtensor<double, 1> y2 = xt::zeros_like(theta);
-        std::size_t idx = 0;
-        for (double th : theta) {
-            x1[idx] =  a*cos(th + dt) * exp(b*th);
-            y1[idx] =  a*sin(th + dt) * exp(b*th);
+        xt::xtensor<double, 1> x1 = a*xt::cos(theta + dt) * xt::exp(b*theta);
+        xt::xtensor<double, 1> y1 = a*xt::sin(theta + dt) * xt::exp(b*theta);
+        xt::xtensor<double, 1> x2 = a*xt::cos(theta + dt + M_PI/4.0) * xt::exp(b*theta);
+        xt::xtensor<double, 1> y2 = a*xt::sin(theta + dt + M_PI/4.0) * xt::exp(b*theta);
 
-            x2[idx] =  a*cos(th + dt + M_PI/4.0) * exp(b*th);
-            y2[idx] =  a*sin(th + dt + M_PI/4.0) * exp(b*th);
-        }
-        //xt::xtensor<double, 1> x1 = a*xt::cos(theta + dt) * xt::exp(b*theta);
-
-        x1.insert(x1.end(), x2.rbegin(), x2.rend());
-        y1.insert(y1.end(), y2.rbegin(), y2.rend());
+        x1 = xt::concatenate(xt::xtuple(x1, xt::view(x2, xt::range(x2.size(), _, -1))));
+        y1 = xt::concatenate(xt::xtuple(y1, xt::view(y2, xt::range(y2.size(), _, -1))));
 
         plt::fill(x1, y1, {});
     }

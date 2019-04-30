@@ -3,10 +3,14 @@
 #include "../matplotlibcpp.h"
 #include <chrono>
 
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+
 namespace plt = matplotlibcpp;
 
+template<class E1, class E2>
 void update_window(const double x, const double y, const double t,
-                   std::vector<double> &xt, std::vector<double> &yt)
+                   E1& xt, E2& yt)
 {
     const double target_length = 300;
     const double half_win = (target_length/(2.*sqrt(1.+t*t)));
@@ -21,20 +25,18 @@ void update_window(const double x, const double y, const double t,
 int main()
 {
     size_t n = 1000;
-    std::vector<double> x, y;
 
     const double w = 0.05;
     const double a = n/2;
 
-    for (size_t i=0; i<n; i++) {
-        x.push_back(i);
-        y.push_back(a*sin(w*i));
-    }
+    xt::xtensor<double, 1> x = xt::linspace<double>(0, n-1, n);
+    xt::xtensor<double, 1> y = a * xt::sin(w * x);
 
-    std::vector<double> xt(2), yt(2);
+    xt::xtensor<double, 1> xt{0,0};
+    xt::xtensor<double, 1> yt{0,0};
 
     plt::title("Tangent of a sine curve");
-    plt::xlim(x.front(), x.back());
+    plt::xlim(*(x.begin()), *(x.end()-1));
     plt::ylim(-a, a);
     plt::axis("equal");
 
