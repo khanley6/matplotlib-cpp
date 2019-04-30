@@ -33,8 +33,8 @@ int main()
     //plt::plot(x, y, "r-", x, [](double d) { return 12.5+abs(sin(d)); }, "k-");
     //plt::plot(x, y, "r-", x, [](double d) { return 12.5+abs(sin(d)); }, "k-", x, y+1.0, "r-.");
     //plt::plot(x, y, "r-", x2, xt::eval(y2+0.5), "b-.", xt::eval(x3+1.0), xt::eval(y3+1.0), "g.");
-    plt::plot(x, y+1.0, "r-");
-    //plt::plot(x, y, "r-");
+    //plt::plot(x, y+1.0, "r-");
+    plt::plot(x, y, "r-");
     //plt::plot(x, y, "r-", x, y2, "b..");
 
 
