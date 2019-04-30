@@ -19,6 +19,15 @@ int main()
         z.push_back(z_row);
     }
 
-    plt::plot_surface(x, y, z);
+    std::array<std::size_t,2> shape{x.size(), x[0].size()};
+    xt::xtensor<double, 2> xx(shape), xy(shape), xz(shape);
+
+    for (std::size_t i = 0; i < x.size(); ++i) {
+        xt::view(xx, i, xt::all()) = xt::adapt(x[i]);
+        xt::view(xy, i, xt::all()) = xt::adapt(y[i]);
+        xt::view(xz, i, xt::all()) = xt::adapt(z[i]);
+    }
+
+    plt::plot_surface(xx, xy, xz);
     plt::show();
 }

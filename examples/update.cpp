@@ -36,7 +36,8 @@ int main()
     xt::xtensor<double, 1> yt{0,0};
 
     plt::title("Tangent of a sine curve");
-    plt::xlim(*(x.begin()), *(x.end()-1));
+    //plt::xlim(*(x.begin()), *(x.end()-1));
+    plt::xlim(x[0], x[n-1]);
     plt::ylim(-a, a);
     plt::axis("equal");
 
