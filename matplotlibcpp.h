@@ -329,10 +329,14 @@ namespace detail {
     template <> struct select_npy_type<uint32_t> { const static NPY_TYPES type = NPY_ULONG; };
     template <> struct select_npy_type<uint64_t> { const static NPY_TYPES type = NPY_UINT64; };
 
+    // xtensor implementation
     template<class E>
-    PyObject* get_array(E&& v)
+    PyObject* get_array(const E& v)
     {
+        //std::cout << "LVALUE CALLED" << std::endl;
+        //std::cout << __PRETTY_FUNCTION__ << "\n\n" << std::endl;
         assert(v.dimension() <= 2);
+        detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         if (v.dimension() == 1) {
             NPY_TYPES type = select_npy_type<typename std::decay_t<E>::value_type>::type;
@@ -352,7 +356,7 @@ namespace detail {
             if (v.size() < 1) throw std::runtime_error("get_2d_array v too small");
 
             npy_intp vsize[2] = {static_cast<npy_intp>(v.shape()[0]),
-                static_cast<npy_intp>(v.shape()[1])};
+                                 static_cast<npy_intp>(v.shape()[1])};
 
             PyArrayObject *varray =
                 (PyArrayObject *)PyArray_SimpleNew(2, vsize, NPY_DOUBLE);
@@ -371,20 +375,83 @@ namespace detail {
         }
     }
 
-#else // fallback if we don't have numpy: copy every element of the given vector
-
-    template<class E>
-    PyObject* get_array(E&& v)
+    // vector implementation
+    template <typename T>
+    PyObject* get_array(const std::vector<T>& v)
     {
-        PyObject* list = PyList_New(v.size());
-        for(size_t i = 0; i < v.size(); ++i) {
-            PyList_SetItem(list, i, PyFloat_FromDouble(v.at(i)));
+        //std::cout << "LVALUE VECTOR CALLED" << std::endl;
+        //std::cout << __PRETTY_FUNCTION__ << "\n\n" << std::endl;
+        detail::_interpreter::get();
+        NPY_TYPES type = select_npy_type<T>::type;
+        if (type == NPY_NOTYPE)
+        {
+            std::vector<double> vd(v.size());
+            npy_intp vsize = v.size();
+            std::copy(v.begin(),v.end(),vd.begin());
+            PyObject* varray = PyArray_SimpleNewFromData(1, &vsize, NPY_DOUBLE, (void*)(vd.data()));
+            return varray;
+        }
+
+        npy_intp vsize = v.size();
+        PyObject* varray = PyArray_SimpleNewFromData(1, &vsize, type, (void*)(v.data()));
+        return varray;
+    }
+
+    template <typename T>
+    PyObject* get_2darray(const std::vector<::std::vector<T>>& v)
+    {
+        detail::_interpreter::get();
+        if (v.size() < 1) throw std::runtime_error("get_2d_array v too small");
+
+        npy_intp vsize[2] = {static_cast<npy_intp>(v.size()),
+                             static_cast<npy_intp>(v[0].size())};
+
+        PyArrayObject *varray =
+            (PyArrayObject *)PyArray_SimpleNew(2, vsize, NPY_DOUBLE);
+
+        double *vd_begin = static_cast<double *>(PyArray_DATA(varray));
+
+        for (const ::std::vector<T>& v_row : v) {
+            if (v_row.size() != static_cast<size_t>(vsize[1]))
+                throw std::runtime_error("Missmatched array size");
+            std::copy(v_row.begin(), v_row.end(), vd_begin);
+            vd_begin += vsize[1];
+        }
+
+        return reinterpret_cast<PyObject *>(varray);
+    }
+//#else // fallback if we don't have numpy: copy every element of the given vector
+
+    // xtensor rvalue implementation
+    template<class E>
+    typename std::enable_if_t<!std::is_lvalue_reference<E>::value, PyObject*> get_array(E&& v)
+    {
+        std::cout << "RVALUE CALLED" << std::endl;
+        std::cout << __PRETTY_FUNCTION__ << "\n\n" << std::endl;
+        PyObject* list;
+        if (v.dimension() == 1) {
+            list = PyList_New(v.size());
+            for(size_t i = 0; i < v.size(); ++i) {
+                PyList_SetItem(list, i, PyFloat_FromDouble(v.at(i)));
+            }
+        } else {
+            std::size_t num_rows = v.shape()[0];
+            std::size_t num_cols = v.shape()[1];
+            list = PyList_New(num_rows);
+            for(size_t i = 0; i < num_rows; ++i) {
+                PyObject* row = PyList_New(num_cols);
+                PyList_SetItem(list, i, row);
+                for(size_t j = 0; j < num_cols; ++j) {
+                    PyList_SetItem(row, j, PyFloat_FromDouble(v.at(i,j)));
+                }
+            }
         }
         return list;
     }
 
 #endif // WITHOUT_NUMPY
 
+/*
     template<class E1, class E2>
     bool plot(const E1& x, const E2& y, const std::map<std::string, std::string>& keywords)
     {
@@ -415,9 +482,10 @@ namespace detail {
 
         return res;
     }
+*/
 
     template <class E1, class E2, class E3>
-    void plot_surface(const E1& x, const E2& y, const E3& z,
+    void plot_surface(E1&& x, E2&& y, E3&& z,
             const std::map<std::string, std::string> &keywords =
             std::map<std::string, std::string>())
     {
@@ -446,9 +514,9 @@ namespace detail {
         assert(y.size() == z.size());
 
         // using numpy arrays
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
-        PyObject* zarray = get_array(z);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
+        PyObject* zarray = get_array(std::forward<E3>(z));
 
         // construct positional args
         PyObject *args = PyTuple_New(3);
@@ -506,6 +574,7 @@ namespace detail {
         if (res) Py_DECREF(res);
     }
 
+/*
     template<class E1, class E2>
     bool stem(const E1& x, const E2& y, const std::map<std::string, std::string>& keywords)
     {
@@ -539,16 +608,16 @@ namespace detail {
 
         return res;
     }
-
+*/
     template<class E1, class E2>
-    bool fill(const E1& x, const E2& y, const std::map<std::string, std::string>& keywords)
+    bool fill(E1&& x, E2&& y, const std::map<std::string, std::string>& keywords)
     {
         assert(x.size() == y.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         // using numpy arrays
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         // construct positional args
         PyObject* args = PyTuple_New(2);
@@ -572,16 +641,16 @@ namespace detail {
     }
 
     template<class E1, class E2, class E3>
-    bool fill_between(const E1& x, const E2& y1, const E3& y2, const std::map<std::string, std::string>& keywords)
+    bool fill_between(E1&& x, E2&& y1, E3&& y2, const std::map<std::string, std::string>& keywords)
     {
         assert(x.size() == y1.size());
         assert(x.size() == y2.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         // using numpy arrays
-        PyObject* xarray = get_array(x);
-        PyObject* y1array = get_array(y1);
-        PyObject* y2array = get_array(y2);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* y1array = get_array(std::forward<E2>(y1));
+        PyObject* y2array = get_array(std::forward<E3>(y2));
 
         // construct positional args
         PyObject* args = PyTuple_New(3);
@@ -604,6 +673,7 @@ namespace detail {
         return res;
     }
 
+/*
     template<class E>
     bool hist(const E& y, long bins=10, std::string color="b",
             double alpha=1.0, bool cumulative=false)
@@ -632,7 +702,8 @@ namespace detail {
 
         return res;
     }
-
+*/
+/*
     template<class E1, class E2>
     bool scatter(const E1& x, const E2& y,
             const double s=1.0) // The marker size in points**2
@@ -658,18 +729,17 @@ namespace detail {
 
         return res;
     }
+*/
 
     template<class E>
-    bool bar(const E& y, std::string ec = "black", std::string ls = "-", double lw = 1.0,
+    bool bar(E&& y, std::string ec = "black", std::string ls = "-", double lw = 1.0,
             const std::map<std::string, std::string>& keywords = {})
     {
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* yarray = get_array(y);
+        PyObject* yarray = get_array(std::forward<E>(y));
 
-        xt::xtensor<typename std::decay_t<E>::value_type, 1> x = xt::arange<typename std::decay_t<E>::value_type>(y.size());
-
-        PyObject* xarray = get_array(x);
+        PyObject* xarray = get_array(xt::arange<typename std::decay_t<E>::value_type>(y.size()));
 
         PyObject* kwargs = PyDict_New();
 
@@ -712,7 +782,7 @@ namespace detail {
 
         return res;
     }
-
+/*
     template<class E>
     bool named_hist(std::string label, const E& y, long bins=10, std::string color="b", double alpha=1.0)
     {
@@ -738,15 +808,17 @@ namespace detail {
 
         return res;
     }
-
-    template<class E1, class E2>
-    bool plot(const E1& x, const E2& y, const std::string& s = "")
+*/
+    // enable_if used to fix overload resolution on variadic call to plot (see below) when the
+    // last argument is a callable, such as a lambda
+    template<class E1, class E2, typename = std::enable_if_t<xt::is_xexpression<E2>::value>>
+    bool plot(E1&& x, E2&& y, const std::string& s = "")
     {
         assert(x.size() == y.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         PyObject* pystring = PyString_FromString(s.c_str());
 
@@ -764,16 +836,16 @@ namespace detail {
     }
 
     template<class E1, class E2, class E3, class E4>
-    bool quiver(const E1& x, const E2& y, const E3& u, const E4& w,
+    bool quiver(E1&& x, E2&& y, E3&& u, E4&& w,
                 const std::map<std::string, std::string>& keywords = {})
     {
         assert(x.size() == y.size() && x.size() == u.size() && u.size() == w.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
-        PyObject* uarray = get_array(u);
-        PyObject* warray = get_array(w);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
+        PyObject* uarray = get_array(std::forward<E3>(u));
+        PyObject* warray = get_array(std::forward<E4>(w));
 
         PyObject* plot_args = PyTuple_New(4);
         PyTuple_SetItem(plot_args, 0, xarray);
@@ -799,6 +871,7 @@ namespace detail {
         return res;
     }
 
+/*
     template<class E1, class E2>
     bool stem(const E1& x, const E2& y, const std::string& s = "")
     {
@@ -824,7 +897,8 @@ namespace detail {
 
         return res;
     }
-
+*/
+/*
     template<class E1, class E2>
     bool semilogx(const E1& x, const E2& y, const std::string& s = "")
     {
@@ -848,7 +922,8 @@ namespace detail {
 
         return res;
     }
-
+*/
+/*
     template<class E1, class E2>
     bool semilogy(const E1& x, const E2& y, const std::string& s = "")
     {
@@ -872,7 +947,8 @@ namespace detail {
 
         return res;
     }
-
+*/
+/*
     template<class E1, class E2>
     bool loglog(const E1& x, const E2& y, const std::string& s = "")
     {
@@ -896,7 +972,8 @@ namespace detail {
 
         return res;
     }
-
+*/
+/*
     template<class E1, class E2, class E3>
     bool errorbar(const E1& x, const E2& y, const E3& yerr,
                   const std::map<std::string, std::string> &keywords = {})
@@ -933,16 +1010,17 @@ namespace detail {
 
         return res;
     }
-
-    template<class E>
-    bool named_plot(const std::string& name, const E& y, const std::string& format = "")
+*/
+/*
+    template <class E>
+    bool named_plot(const std::string& name, E&& y, const std::string& format = "")
     {
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         PyObject* kwargs = PyDict_New();
         PyDict_SetItemString(kwargs, "label", PyString_FromString(name.c_str()));
 
-        PyObject* yarray = get_array(y);
+        PyObject* yarray = get_array(std::forward<E>(y));
 
         PyObject* pystring = PyString_FromString(format.c_str());
 
@@ -959,17 +1037,18 @@ namespace detail {
 
         return res;
     }
+*/
 
     template<class E1, class E2>
-    bool named_plot(const std::string& name, const E1& x, const E2& y, const std::string& format = "")
+    bool named_plot(const std::string& name, E1&& x, E2&& y, const std::string& format = "")
     {
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         PyObject* kwargs = PyDict_New();
         PyDict_SetItemString(kwargs, "label", PyString_FromString(name.c_str()));
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         PyObject* pystring = PyString_FromString(format.c_str());
 
@@ -986,7 +1065,7 @@ namespace detail {
 
         return res;
     }
-
+/*
     template<class E1, class E2>
     bool named_semilogx(const std::string& name, const E1& x, const E2& y, const std::string& format = "")
     {
@@ -1013,7 +1092,8 @@ namespace detail {
 
         return res;
     }
-
+*/
+/*
     template<class E1, class E2>
     bool named_semilogy(const std::string& name, const E1& x, const E2& y, const std::string& format = "")
     {
@@ -1040,7 +1120,8 @@ namespace detail {
 
         return res;
     }
-
+*/
+/*
     template<class E1, class E2>
     bool named_loglog(const std::string& name, const E1& x, const E2& y, const std::string& format = "")
     {
@@ -1067,20 +1148,23 @@ namespace detail {
 
         return res;
     }
+*/
 
     template<class E>
-    bool plot(const E& y, const std::string& format = "")
+    bool plot(E&& y, const std::string& format = "")
     {
         xt::xtensor<double, 1> x = xt::arange(y.size());
-        return plot(x, y, format);
+        return plot(std::move(x), std::forward<E>(y), format);
     }
 
+/*
     template<class E>
     bool stem(const E& y, const std::string& format = "")
     {
         xt::xtensor<double, 1> x = xt::arange(y.size());
         return stem(x, y, format);
     }
+*/
 
     template<typename Numeric>
     void text(Numeric x, Numeric y, const std::string& s = "")
@@ -1098,7 +1182,6 @@ namespace detail {
         Py_DECREF(args);
         Py_DECREF(res);
     }
-
 
     inline long figure(long number = -1)
     {
@@ -1253,7 +1336,7 @@ namespace detail {
         Py_DECREF(res);
         return arr;
     }
-
+/*
     template<class E>
     inline void xticks(const E& ticks, const std::vector<std::string> &labels = {},
                        const std::map<std::string, std::string>& keywords = {})
@@ -1296,13 +1379,15 @@ namespace detail {
 
         Py_DECREF(res);
     }
-
+*/
+/*
     template<class E>
     inline void xticks(const E& ticks, const std::map<std::string, std::string>& keywords)
     {
         xticks(ticks, {}, keywords);
     }
-
+*/
+/*
     template<class E>
     inline void yticks(const E& ticks, const std::vector<std::string> &labels = {},
                        const std::map<std::string, std::string>& keywords = {})
@@ -1345,13 +1430,14 @@ namespace detail {
 
         Py_DECREF(res);
     }
-
+*/
+/*
     template<class E>
     inline void yticks(const E& ticks, const std::map<std::string, std::string>& keywords)
     {
         yticks(ticks, {}, keywords);
-        }
-
+    }
+*/
     inline void subplot(long nrows, long ncols, long plot_number)
     {
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
@@ -1520,7 +1606,7 @@ namespace detail {
     }
 
     inline void xkcd() {
-        detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
+        //detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         PyObject* res;
         PyObject *kwargs = PyDict_New();
@@ -1640,7 +1726,6 @@ namespace detail {
     }
 
     // Support for variadic plot() and initializer lists:
-
 namespace detail {
 
     template<typename T>
@@ -1664,10 +1749,10 @@ namespace detail {
         template<typename U, U> struct Check;
 
         template<typename U>
-            static std::true_type test( ... ); // use a variadic function to make sure (1) it accepts everything and (2) its always the worst match
+        static std::true_type test( ... ); // use a variadic function to make sure (1) it accepts everything and (2) its always the worst match
 
         template<typename U>
-            static std::false_type test( Check<void(Fallback::*)(), &U::operator()>* );
+        static std::false_type test( Check<void(Fallback::*)(), &U::operator()>* );
 
     public:
         typedef decltype(test<Derived>(nullptr)) type;
@@ -1689,7 +1774,7 @@ namespace detail {
     struct plot_impl<std::false_type>
     {
         template<typename IterableX, typename IterableY>
-        bool operator()(IterableX& x, IterableY& y, const std::string& format)
+        bool operator()(IterableX&& x, IterableY&& y, const std::string& format)
         {
             // 2-phase lookup for distance, begin, end
             using std::distance;
@@ -1706,7 +1791,9 @@ namespace detail {
             PyObject* ylist = PyList_New(ys);
             PyObject* pystring = PyString_FromString(format.c_str());
 
-            auto itx = begin(x), ity = begin(y);
+            //auto itx = begin(x), ity = begin(y);
+            auto itx = x.begin();
+            auto ity = y.begin();
             for(size_t i = 0; i < xs; ++i) {
                 PyList_SetItem(xlist, i, PyFloat_FromDouble(*itx++));
                 PyList_SetItem(ylist, i, PyFloat_FromDouble(*ity++));
@@ -1730,7 +1817,7 @@ namespace detail {
     struct plot_impl<std::true_type>
     {
         template<typename Iterable, typename Callable>
-        bool operator()(Iterable& ticks, Callable& f, const std::string& format)
+        bool operator()(Iterable&& ticks, Callable&& f, const std::string& format)
         {
             if(begin(ticks) == end(ticks)) return true;
 
@@ -1742,7 +1829,6 @@ namespace detail {
             //for(auto x : ticks) y.push_back(f(x));
             std::size_t idx = 0;
             for(auto x : ticks) y[idx++] = f(x);
-            //for (auto i = 0ul;  i < size; ++i) y[i] = f(ticks[i]);
             return plot_impl<std::false_type>()(std::forward<Iterable>(ticks), std::move(y), format);
         }
     };
@@ -1753,47 +1839,56 @@ namespace detail {
     template<typename... Args>
     bool plot() { return true; }
 
-    template<class E1, class E2, typename... Args>
-    bool plot(const E1& a, const E2& b, const std::string& format, Args... args)
-    {
-        // FIXME
-        return detail::plot_impl<typename detail::is_callable<typename std::decay_t<E2>>::type>()(a, b, format) && plot(args...);
-        //return plot(a, b, format) && plot(args...);
-        //return plot(a, b, format) && plot(args...);
-        }
+    template <class T>
+    void pprint(void) { std::cout << "\n" << __PRETTY_FUNCTION__ << "\n" << std::endl; }
 
-    /*
-     * This group of plot() functions is needed to support initializer lists, i.e. calling
-     *    plot( {1,2,3,4} )
-     */
+    template<class E1, class E2, typename... Args>
+    bool plot(E1&& a, E2&& b, const std::string& format, Args... args)
+    {
+
+        return detail::plot_impl<
+                std::integral_constant<bool, xtl::conjunction<
+                    typename detail::is_callable<typename std::decay_t<E2>>::type,
+                    xtl::negation<xt::is_xexpression<E2>>
+                >::value>
+            >()(std::forward<E1>(a), std::forward<E2>(b), format) && plot(std::forward<Args>(args)...);
+
+        //return detail::plot_impl<typename detail::is_callable<typename std::decay_t<E2>>::type>()(
+                //std::forward<E1>(a), std::forward<E2>(b), format) && plot(std::forward<Args>(args)...);
+    }
+
+    //
+    // This group of plot() functions is needed to support initializer lists, i.e. calling
+    //    plot( {1,2,3,4} )
+    ///
     inline bool plot(std::vector<double> x, std::vector<double> y, const std::string& format = "") {
         xt::xtensor<double, 1> x_adapt = xt::adapt(x);
         xt::xtensor<double, 1> y_adapt = xt::adapt(y);
-        return plot(x_adapt, y_adapt, format);
+        return plot(std::move(x_adapt), std::move(y_adapt), format);
     }
 
     inline bool plot(std::vector<double> y, const std::string& format = "") {
         xt::xtensor<double, 1> y_adapt = xt::adapt(y);
-        return plot(y_adapt, format);
+        return plot(std::move(y_adapt), format);
     }
 
+/*
     inline bool plot(std::vector<double> x, std::vector<double> y, const std::map<std::string, std::string>& keywords) {
         xt::xtensor<double, 1> x_adapt = xt::adapt(x);
         xt::xtensor<double, 1> y_adapt = xt::adapt(y);
         return plot(x_adapt, y_adapt, keywords);
     }
+*/
 
-    /*
-     * This class allows dynamic plots, ie changing the plotted data without clearing and re-plotting
-     */
-
+    //
+    // This class allows dynamic plots, ie changing the plotted data without clearing and re-plotting
+    //
     class Plot
     {
     public:
         // default initialization with plot label, some data and format
         template<class E1, class E2>
-        Plot(const std::string& name, const E1& x, const E2& y, const std::string& format = "") {
-        //Plot(const std::string& name, E1&& x, E2&& y, const std::string& format = "") {
+        Plot(const std::string& name, E1&& x, E2&& y, const std::string& format = "") {
 
             assert(x.size() == y.size());
 
@@ -1801,8 +1896,8 @@ namespace detail {
             if(name != "")
                 PyDict_SetItemString(kwargs, "label", PyString_FromString(name.c_str()));
 
-            PyObject* xarray = get_array(x);
-            PyObject* yarray = get_array(y);
+            PyObject* xarray = get_array(std::forward<E1>(x));
+            PyObject* yarray = get_array(std::forward<E2>(y));
 
             PyObject* pystring = PyString_FromString(format.c_str());
 
@@ -1834,12 +1929,12 @@ namespace detail {
             : Plot(name, xt::xtensor<double,1>(), xt::xtensor<double,1>(), format) {}
 
         template<class E1, class E2>
-        bool update(const E1& x, const E2& y) {
+        bool update(E1&& x, E2&& y) {
             assert(x.size() == y.size());
             if(set_data_fct)
             {
-                PyObject* xarray = get_array(x);
-                PyObject* yarray = get_array(y);
+                PyObject* xarray = get_array(std::forward<E1>(x));
+                PyObject* yarray = get_array(std::forward<E2>(y));
 
                 PyObject* plot_args = PyTuple_New(2);
                 PyTuple_SetItem(plot_args, 0, xarray);
@@ -1885,5 +1980,4 @@ namespace detail {
         PyObject* line = nullptr;
         PyObject* set_data_fct = nullptr;
     };
-
 } // end namespace matplotlibcpp

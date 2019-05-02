@@ -26,7 +26,7 @@ int main() {
         x1 = xt::concatenate(xt::xtuple(x1, xt::view(x2, xt::range(x2.size(), _, -1))));
         y1 = xt::concatenate(xt::xtuple(y1, xt::view(y2, xt::range(y2.size(), _, -1))));
 
-        plt::fill(x1, y1, {});
+        plt::fill(x1+50, y1+50, {});
     }
     plt::show();
 }

@@ -21,12 +21,12 @@ int main()
 			// Clear previous plot
 			plt::clf();
 			// Plot line from given x and y data. Color is selected automatically.
-			plt::plot(x, y);
+			plt::plot(x-50000, y+2);
 			// Plot a line whose name will show up as "log(x)" in the legend.
 			plt::named_plot("log(x)", x, z);
 
 			// Set x-axis to interval [0,1000000]
-			plt::xlim(0, n*n);
+			plt::xlim(-50000, n*n);
 
 			// Add graph title
 			plt::title("Sample figure");

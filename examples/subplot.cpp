@@ -23,9 +23,9 @@ int main()
     // Set the "super title"
     plt::suptitle("My plot");
     plt::subplot(1, 2, 1);
-	plt::plot(x, y, "r-");
+	plt::plot(x, y+2, "r-");
     plt::subplot(1, 2, 2);
-    plt::plot(x, z, "k-");
+    plt::plot(x-50000, z-2, "k-");
     // Add some text to the plot
     plt::text(100, 90, "Hello!");
 

@@ -1,6 +1,10 @@
+#define _USE_MATH_DEFINES
+#include <iostream>
+#include <cmath>
 #include "../matplotlibcpp.h"
 
-#include <cmath>
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
 
 namespace plt = matplotlibcpp;
 
@@ -28,6 +32,6 @@ int main()
         xt::view(xz, i, xt::all()) = xt::adapt(z[i]);
     }
 
-    plt::plot_surface(xx, xy, xz);
+    plt::plot_surface(xx, xy, xz+2);
     plt::show();
 }

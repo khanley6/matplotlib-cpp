@@ -24,13 +24,14 @@ int main()
     plt::figure_size(1200, 780);
 
     // Plot line from given x and y data. Color is selected automatically.
-    plt::plot(x, y);
+    plt::plot(x, y+1);
 
     // Plot a red dashed line from given x and y data.
-    plt::plot(x, w,"r--");
+    plt::plot(x, w+1, "r--");
 
     // Plot a line whose name will show up as "log(x)" in the legend.
     plt::named_plot("log(x)", x, z);
+    plt::named_plot("log(x)+1", x, z+1);
 
     // Set x-axis to interval [0,1000000]
     plt::xlim(0, 1000*1000);

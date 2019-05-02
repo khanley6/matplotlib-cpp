@@ -21,6 +21,6 @@ int main()
         }
     }
 
-    plt::quiver(x, y, u, v);
+    plt::quiver(x+2, y+2, u+3, v+1);
     plt::show();
 }
