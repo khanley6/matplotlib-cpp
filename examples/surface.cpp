@@ -32,6 +32,7 @@ int main()
         xt::view(xz, i, xt::all()) = xt::adapt(z[i]);
     }
 
-    plt::plot_surface(xx, xy, xz+2);
+    //plt::plot_surface(xx, xy, xz);
+    plt::plot_surface(xx+2, xy, xz+2);
     plt::show();
 }

@@ -420,8 +420,8 @@ namespace detail {
 
         return reinterpret_cast<PyObject *>(varray);
     }
-//#else // fallback if we don't have numpy: copy every element of the given vector
 
+//#else // fallback if we don't have numpy: copy every element of the given vector
     // xtensor rvalue implementation
     template<class E>
     typename std::enable_if_t<!std::is_lvalue_reference<E>::value, PyObject*> get_array(E&& v)
@@ -485,10 +485,13 @@ namespace detail {
 */
 
     template <class E1, class E2, class E3>
+    //void plot_surface(E1&& x, E2&& y, const E3& z,
     void plot_surface(E1&& x, E2&& y, E3&& z,
             const std::map<std::string, std::string> &keywords =
             std::map<std::string, std::string>())
     {
+        static_assert(std::is_lvalue_reference<E3>::value,
+                "z argument to surface is required to be an lvalue");
         // We lazily load the modules here the first time this function is called
         // because I'm not sure that we can assume "matplotlib installed" implies
         // "mpl_toolkits installed" on all platforms, and we don't want to require
@@ -517,6 +520,7 @@ namespace detail {
         PyObject* xarray = get_array(std::forward<E1>(x));
         PyObject* yarray = get_array(std::forward<E2>(y));
         PyObject* zarray = get_array(std::forward<E3>(z));
+        //PyObject* zarray = get_array(z);
 
         // construct positional args
         PyObject *args = PyTuple_New(3);
