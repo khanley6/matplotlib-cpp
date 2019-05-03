@@ -1,3 +1,13 @@
+matplotlib-cpp-xt
+=================
+
+This is a fork of ![matplotlib-cpp](https://github.com/lava/matplotlib-cpp)
+that supports plotting ![xtensor](https://github.com/QuantStack/xtensor) objects
+
+The README below has been edited slightly to exhibit xtensor plotting capabilities.
+
+
+
 matplotlib-cpp
 ==============
 
@@ -17,16 +27,16 @@ int main() {
     plt::show();
 }
 ```
-    g++ minimal.cpp -std=c++11 -I/usr/include/python2.7 -lpython2.7
+    g++ minimal.cpp -std=c++14 -I/usr/include/python3.6 -lpython3.6
 
-**Result:**
-
-![Minimal example](./examples/minimal.png)
 
 A more comprehensive example:
 ```cpp
 #include "matplotlibcpp.h"
 #include <cmath>
+
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
 
 namespace plt = matplotlibcpp;
 
@@ -34,17 +44,17 @@ int main()
 {
     // Prepare data.
     int n = 5000;
-    std::vector<double> x(n), y(n), z(n), w(n,2);
-    for(int i=0; i<n; ++i) {
-        x.at(i) = i*i;
-        y.at(i) = sin(2*M_PI*i/360.0);
-        z.at(i) = log(i);
-    }
+    xt::xtensor<double, 1> i = xt::linspace<double>(0, (n-1), n);
+    std::array<std::size_t,1> shape{static_cast<std::size_t>(n)};
+    xt::xtensor<double, 1> w(shape); w.fill(2.0);
+    xt::xtensor<double, 1> x = xt::square(i);
+    xt::xtensor<double, 1> y = xt::sin(2 * xt::numeric_constants<double>::PI * i / 360.0);
+    xt::xtensor<double, 1> z = xt::log(i);
 
     // Set the size of output image to 1200x780 pixels
     plt::figure_size(1200, 780);
     // Plot line from given x and y data. Color is selected automatically.
-    plt::plot(x, y);
+    plt::plot(x, y + 1.0); // rvalues are supported
     // Plot a red dashed line from given x and y data.
     plt::plot(x, w,"r--");
     // Plot a line whose name will show up as "log(x)" in the legend.
@@ -59,46 +69,39 @@ int main()
     plt::save("./basic.png");
 }
 ```
-    g++ basic.cpp -I/usr/include/python2.7 -lpython2.7
+    g++ basic.cpp -std=c++14 -I/usr/include/python3.6 -lpython3.6
 
-**Result:**
-
-![Basic example](./examples/basic.png)
 
 Alternatively, matplotlib-cpp also supports some C++11-powered syntactic sugar:
 ```cpp
 #include <cmath>
 #include "matplotlibcpp.h"
 
-using namespace std;
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+
 namespace plt = matplotlibcpp;
 
 int main() 
 {    
     // Prepare data.
     int n = 5000; // number of data points
-    vector<double> x(n),y(n); 
-    for(int i=0; i<n; ++i) {
-        double t = 2*M_PI*i/n;
-        x.at(i) = 16*sin(t)*sin(t)*sin(t);
-        y.at(i) = 13*cos(t) - 5*cos(2*t) - 2*cos(3*t) - cos(4*t);
-    }
+    xt::xtensor<double, 1> i = xt::linspace<double>(0, (n-1), n);
+    xt::xtensor<double, 1> t = 2 * xt::numeric_constants<double>::PI * i / n;
+    xt::xtensor<double, 1> x = 16*xt::sin(t)*xt::sin(t)*xt::sin(t);
+    xt::xtensor<double, 1> y = 13*xt::cos(t) - 5*xt::cos(2*t) - 2*xt::cos(3*t) - xt::cos(4*t);
 
     // plot() takes an arbitrary number of (x,y,format)-triples. 
     // x must be iterable (that is, anything providing begin(x) and end(x)),
     // y must either be callable (providing operator() const) or iterable. 
     plt::plot(x, y, "r-", x, [](double d) { return 12.5+abs(sin(d)); }, "k-");
 
-
     // show plots
     plt::show();
 } 
 ```
-    g++ modern.cpp -std=c++11 -I/usr/include/python2.7 -lpython
+    g++ modern.cpp -std=c++14 -I/usr/include/python3.6 -lpython3.6
 
-**Result:**
-
-![Modern example](./examples/modern.png)
 
 Or some *funny-looking xkcd-styled* example:
 ```cpp
@@ -106,16 +109,14 @@ Or some *funny-looking xkcd-styled* example:
 #include <vector>
 #include <cmath>
 
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+
 namespace plt = matplotlibcpp;
 
 int main() {
-    std::vector<double> t(1000);
-    std::vector<double> x(t.size());
-
-    for(size_t i = 0; i < t.size(); i++) {
-        t[i] = i / 100.0;
-        x[i] = sin(2.0 * M_PI * 1.0 * t[i]);
-    }
+    xt::xtensor<double, 1> t = xt::linspace<double>(0, 10, 1000);
+    xt::xtensor<double, 1> x = xt::sin(2.0 * xt::numeric_constants<double>::PI * t);
 
     plt::xkcd();
     plt::plot(t, x);
@@ -124,28 +125,31 @@ int main() {
 }
 
 ```
-    g++ xkcd.cpp -std=c++11 -I/usr/include/python2.7 -lpython2.7
+    g++ xkcd.cpp -std=c++14 -I/usr/include/python3.6 -lpython3.6
 
-**Result:**
-
-![xkcd example](./examples/xkcd.png)
 
 When working with vector fields, you might be interested in quiver plots:
 ```cpp
 #include "../matplotlibcpp.h"
+
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
 
 namespace plt = matplotlibcpp;
 
 int main()
 {
     // u and v are respectively the x and y components of the arrows we're plotting
-    std::vector<int> x, y, u, v;
+    std::array<std::size_t, 1> shape{121};
+    xt::xtensor<int,1> x(shape), y(shape), u(shape), v(shape);
+    std::size_t idx = 0;
     for (int i = -5; i <= 5; i++) {
         for (int j = -5; j <= 5; j++) {
-            x.push_back(i);
-            u.push_back(-i);
-            y.push_back(j);
-            v.push_back(-j);
+            x[idx] = (i)
+            u[idx] = (-i);
+            y[idx] = (j);
+            v[idx] = (-j);
+            ++idx;
         }
     }
 
@@ -153,15 +157,16 @@ int main()
     plt::show();
 }
 ```
-    g++ quiver.cpp -std=c++11 -I/usr/include/python2.7 -lpython2.7
+    g++ quiver.cpp -std=c++14 -I/usr/include/python3.6 -lpython3.6
 
-**Result:**
-
-![quiver example](./examples/quiver.png)
 
 When working with 3d functions, you might be interested in 3d plots:
 ```cpp
 #include "../matplotlibcpp.h"
+
+#include <xtensor/xbuilder.hpp>
+#include <xtensor/xtensor.hpp>
+#include <xtensor/xview.hpp>
 
 namespace plt = matplotlibcpp;
 
@@ -180,14 +185,20 @@ int main()
         z.push_back(z_row);
     }
 
-    plt::plot_surface(x, y, z);
+    std::array<std::size_t,2> shape{x.size(), x[0].size()};
+    xt::xtensor<double, 2> xx(shape), xy(shape), xz(shape);
+
+    for (std::size_t i = 0; i < x.size(); ++i) {
+        xt::view(xx, i, xt::all()) = xt::adapt(x[i]);
+        xt::view(xy, i, xt::all()) = xt::adapt(y[i]);
+        xt::view(xz, i, xt::all()) = xt::adapt(z[i]);
+    }
+
+    plt::plot_surface(xx, xy, xz);
     plt::show();
 }
 ```
 
-**Result:**
-
-![surface example](./examples/surface.png)
 
 Installation
 ------------
@@ -196,7 +207,7 @@ matplotlib-cpp works by wrapping the popular python plotting library matplotlib.
 This means you have to have a working python installation, including development headers.
 On Ubuntu:
 
-    sudo apt-get install python-matplotlib python-numpy python2.7-dev
+    sudo apt-get install python3-matplotlib python3-numpy python3-dev
 
 If, for some reason, you're unable to get a working installation of numpy on your system,
 you can add the define `WITHOUT_NUMPY` to erase this dependency.
@@ -204,7 +215,7 @@ you can add the define `WITHOUT_NUMPY` to erase this dependency.
 The C++-part of the library consists of the single header file `matplotlibcpp.h` which can be placed
 anywhere.
 
-Since a python interpreter is opened internally, it is necessary to link against `libpython2.7` in order to use
+Since a python interpreter is opened internally, it is necessary to link against `libpython` in order to use
 matplotlib-cpp.
 
 # CMake
@@ -217,7 +228,9 @@ target_include_directories(myproject PRIVATE ${PYTHON_INCLUDE_DIRS})
 target_link_libraries(myproject ${PYTHON_LIBRARIES})
 ```
 
-# C++11
+# C++14
+
+c++14 is now required as `xtensor` uses c++14 features.
 
 Currently, c++11 is required to build matplotlib-cpp. The last working commit that did
 not have this requirement was `717e98e752260245407c5329846f5d62605eff08`.
@@ -226,7 +239,7 @@ Note that support for c++98 was dropped more or less accidentally, so if you hav
 with an ancient compiler and still want to enjoy the latest additional features, I'd
 probably merge a PR that restores support.
 
-# Python 3
+# Python 2
 
 This library supports both python2 and python3 (although the python3 support is probably far less tested,
 so it is recommended to prefer python2.7). To switch the used python version, simply change

@@ -21,15 +21,10 @@ int main()
     xt::xtensor<double, 1> x = 16*xt::sin(t)*xt::sin(t)*xt::sin(t);
     xt::xtensor<double, 1> y = 13*xt::cos(t) - 5*xt::cos(2*t) - 2*xt::cos(3*t) - xt::cos(4*t);
 
-    xt::xtensor<double, 1> x2 = 16*xt::sin(t)*xt::sin(t)*xt::sin(t);
-    xt::xtensor<double, 1> y2 = 13*xt::cos(t) - 5*xt::cos(2*t) - 2*xt::cos(3*t) - xt::cos(4*t);
-
-
 	// plot() takes an arbitrary number of (x,y,format)-triples. 
 	// x must be iterable (that is, anything providing begin(x) and end(x)),
 	// y must either be callable (providing operator() const) or iterable. 
     plt::plot(x, y, "r-", x, [](double d) { return 12.5+abs(sin(d)); }, "k-");
-    //plt::plot(x, y, "r-", x, [](double d) { return 12.5+abs(sin(d)); }, "k-", x, y+1.0, "r-.");
 
 
 	// show plots
