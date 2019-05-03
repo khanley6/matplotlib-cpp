@@ -33,6 +33,6 @@ int main()
     }
 
     //plt::plot_surface(xx, xy, xz);
-    plt::plot_surface(xx+2, xy, xz+2);
+    plt::plot_surface(xx+2, xy+5, xz);
     plt::show();
 }

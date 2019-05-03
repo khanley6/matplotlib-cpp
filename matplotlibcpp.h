@@ -25,8 +25,6 @@
 
 #include <xtensor/xadapt.hpp>
 #include <xtensor/xbuilder.hpp>
-#include <xtensor/xeval.hpp>
-#include <xtensor/xio.hpp>
 #include <xtensor/xtensor_forward.hpp>
 #include <xtensor/xview.hpp>
 
@@ -333,8 +331,6 @@ namespace detail {
     template<class E>
     PyObject* get_array(const E& v)
     {
-        //std::cout << "LVALUE CALLED" << std::endl;
-        //std::cout << __PRETTY_FUNCTION__ << "\n\n" << std::endl;
         assert(v.dimension() <= 2);
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
@@ -376,13 +372,11 @@ namespace detail {
     }
 
     // vector implementation
-    template <typename T>
-    PyObject* get_array(const std::vector<T>& v)
+    template <typename Numeric>
+    PyObject* get_array(const std::vector<Numeric>& v)
     {
-        //std::cout << "LVALUE VECTOR CALLED" << std::endl;
-        //std::cout << __PRETTY_FUNCTION__ << "\n\n" << std::endl;
         detail::_interpreter::get();
-        NPY_TYPES type = select_npy_type<T>::type;
+        NPY_TYPES type = select_npy_type<Numeric>::type;
         if (type == NPY_NOTYPE)
         {
             std::vector<double> vd(v.size());
@@ -396,38 +390,17 @@ namespace detail {
         PyObject* varray = PyArray_SimpleNewFromData(1, &vsize, type, (void*)(v.data()));
         return varray;
     }
+#endif // WITHOUT_NUMPY
 
-    template <typename T>
-    PyObject* get_2darray(const std::vector<::std::vector<T>>& v)
-    {
-        detail::_interpreter::get();
-        if (v.size() < 1) throw std::runtime_error("get_2d_array v too small");
-
-        npy_intp vsize[2] = {static_cast<npy_intp>(v.size()),
-                             static_cast<npy_intp>(v[0].size())};
-
-        PyArrayObject *varray =
-            (PyArrayObject *)PyArray_SimpleNew(2, vsize, NPY_DOUBLE);
-
-        double *vd_begin = static_cast<double *>(PyArray_DATA(varray));
-
-        for (const ::std::vector<T>& v_row : v) {
-            if (v_row.size() != static_cast<size_t>(vsize[1]))
-                throw std::runtime_error("Missmatched array size");
-            std::copy(v_row.begin(), v_row.end(), vd_begin);
-            vd_begin += vsize[1];
-        }
-
-        return reinterpret_cast<PyObject *>(varray);
-    }
-
-//#else // fallback if we don't have numpy: copy every element of the given vector
     // xtensor rvalue implementation
+    // if WITHOUT_NUMPY is defined, this function accepts all calls to get_array
     template<class E>
+#ifndef WITHOUT_NUMPY
     typename std::enable_if_t<!std::is_lvalue_reference<E>::value, PyObject*> get_array(E&& v)
+#else
+    typename std::enable_if_t<xt::is_xexpression<E>::value, PyObject*> get_array(E&& v)
+#endif // WITHOUT_NUMPY
     {
-        std::cout << "RVALUE CALLED" << std::endl;
-        std::cout << __PRETTY_FUNCTION__ << "\n\n" << std::endl;
         PyObject* list;
         if (v.dimension() == 1) {
             list = PyList_New(v.size());
@@ -449,18 +422,30 @@ namespace detail {
         return list;
     }
 
-#endif // WITHOUT_NUMPY
+#ifdef WITHOUT_NUMPY
+    // vector implementation
+    template <typename Numeric>
+    PyObject* get_array(const std::vector<Numeric>& v)
+    {
+        PyObject* list = PyList_New(v.size());
+        for(size_t i = 0; i < v.size(); ++i) {
+            PyList_SetItem(list, i, PyFloat_FromDouble(v.at(i)));
+        }
+        return list;
+    }
+#endif
+
 
 /*
     template<class E1, class E2>
-    bool plot(const E1& x, const E2& y, const std::map<std::string, std::string>& keywords)
+    bool plot(E1&& x, E2&& y, const std::map<std::string, std::string>& keywords)
     {
         assert(x.size() == y.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         // using numpy arrays
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         // construct positional args
         PyObject* args = PyTuple_New(2);
@@ -484,12 +469,14 @@ namespace detail {
     }
 */
 
+#ifndef WITHOUT_NUMPY
     template <class E1, class E2, class E3>
-    //void plot_surface(E1&& x, E2&& y, const E3& z,
     void plot_surface(E1&& x, E2&& y, E3&& z,
             const std::map<std::string, std::string> &keywords =
             std::map<std::string, std::string>())
     {
+        // Passing a list of lists as the z argument results in python throwing:
+        //   `AttributeError: 'list' object has no attribute 'ndim'`
         static_assert(std::is_lvalue_reference<E3>::value,
                 "z argument to surface is required to be an lvalue");
         // We lazily load the modules here the first time this function is called
@@ -520,7 +507,6 @@ namespace detail {
         PyObject* xarray = get_array(std::forward<E1>(x));
         PyObject* yarray = get_array(std::forward<E2>(y));
         PyObject* zarray = get_array(std::forward<E3>(z));
-        //PyObject* zarray = get_array(z);
 
         // construct positional args
         PyObject *args = PyTuple_New(3);
@@ -577,17 +563,18 @@ namespace detail {
         Py_DECREF(kwargs);
         if (res) Py_DECREF(res);
     }
+#endif // WITHOUT_NUMPY
 
 /*
     template<class E1, class E2>
-    bool stem(const E1& x, const E2& y, const std::map<std::string, std::string>& keywords)
+    bool stem(E1&& x, E2&& y, const std::map<std::string, std::string>& keywords)
     {
         assert(x.size() == y.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         // using numpy arrays
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         // construct positional args
         PyObject* args = PyTuple_New(2);
@@ -679,12 +666,12 @@ namespace detail {
 
 /*
     template<class E>
-    bool hist(const E& y, long bins=10, std::string color="b",
+    bool hist(E&& y, long bins=10, std::string color="b",
             double alpha=1.0, bool cumulative=false)
     {
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* yarray = get_array(y);
+        PyObject* yarray = get_array(std::forward<E>(y));
 
         PyObject* kwargs = PyDict_New();
         PyDict_SetItemString(kwargs, "bins", PyLong_FromLong(bins));
@@ -709,14 +696,14 @@ namespace detail {
 */
 /*
     template<class E1, class E2>
-    bool scatter(const E1& x, const E2& y,
+    bool scatter(E1&& x, E2&& y,
             const double s=1.0) // The marker size in points**2
     {
         assert(x.size() == y.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         PyObject* kwargs = PyDict_New();
         PyDict_SetItemString(kwargs, "s", PyLong_FromLong(s));
@@ -788,11 +775,11 @@ namespace detail {
     }
 /*
     template<class E>
-    bool named_hist(std::string label, const E& y, long bins=10, std::string color="b", double alpha=1.0)
+    bool named_hist(std::string label, E&& y, long bins=10, std::string color="b", double alpha=1.0)
     {
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* yarray = get_array(y);
+        PyObject* yarray = get_array(std::forward<E>(y));
 
         PyObject* kwargs = PyDict_New();
         PyDict_SetItemString(kwargs, "label", PyString_FromString(label.c_str()));
@@ -877,13 +864,13 @@ namespace detail {
 
 /*
     template<class E1, class E2>
-    bool stem(const E1& x, const E2& y, const std::string& s = "")
+    bool stem(E1&& x, E2&& y, const std::string& s = "")
     {
         assert(x.size() == y.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         PyObject* pystring = PyString_FromString(s.c_str());
 
@@ -904,13 +891,13 @@ namespace detail {
 */
 /*
     template<class E1, class E2>
-    bool semilogx(const E1& x, const E2& y, const std::string& s = "")
+    bool semilogx(E1&& x, E2&& y, const std::string& s = "")
     {
         assert(x.size() == y.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         PyObject* pystring = PyString_FromString(s.c_str());
 
@@ -929,13 +916,13 @@ namespace detail {
 */
 /*
     template<class E1, class E2>
-    bool semilogy(const E1& x, const E2& y, const std::string& s = "")
+    bool semilogy(E1&& x, E2&& y, const std::string& s = "")
     {
         assert(x.size() == y.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         PyObject* pystring = PyString_FromString(s.c_str());
 
@@ -954,13 +941,13 @@ namespace detail {
 */
 /*
     template<class E1, class E2>
-    bool loglog(const E1& x, const E2& y, const std::string& s = "")
+    bool loglog(E1&& x, E2&& y, const std::string& s = "")
     {
         assert(x.size() == y.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         PyObject* pystring = PyString_FromString(s.c_str());
 
@@ -979,15 +966,15 @@ namespace detail {
 */
 /*
     template<class E1, class E2, class E3>
-    bool errorbar(const E1& x, const E2& y, const E3& yerr,
+    bool errorbar(E1&& x, E2&& y, E3&& yerr,
                   const std::map<std::string, std::string> &keywords = {})
     {
         assert(x.size() == y.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
-        PyObject* yerrarray = get_array(yerr);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
+        PyObject* yerrarray = get_array(std::forward<E3>(yerr));
 
         // construct keyword args
         PyObject* kwargs = PyDict_New();
@@ -1071,15 +1058,15 @@ namespace detail {
     }
 /*
     template<class E1, class E2>
-    bool named_semilogx(const std::string& name, const E1& x, const E2& y, const std::string& format = "")
+    bool named_semilogx(const std::string& name, E1&& x, E2&& y, const std::string& format = "")
     {
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         PyObject* kwargs = PyDict_New();
         PyDict_SetItemString(kwargs, "label", PyString_FromString(name.c_str()));
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         PyObject* pystring = PyString_FromString(format.c_str());
 
@@ -1099,15 +1086,15 @@ namespace detail {
 */
 /*
     template<class E1, class E2>
-    bool named_semilogy(const std::string& name, const E1& x, const E2& y, const std::string& format = "")
+    bool named_semilogy(const std::string& name, E1&& x, E2&& y, const std::string& format = "")
     {
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         PyObject* kwargs = PyDict_New();
         PyDict_SetItemString(kwargs, "label", PyString_FromString(name.c_str()));
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         PyObject* pystring = PyString_FromString(format.c_str());
 
@@ -1127,15 +1114,15 @@ namespace detail {
 */
 /*
     template<class E1, class E2>
-    bool named_loglog(const std::string& name, const E1& x, const E2& y, const std::string& format = "")
+    bool named_loglog(const std::string& name, E1&& x, E2&& y, const std::string& format = "")
     {
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         PyObject* kwargs = PyDict_New();
         PyDict_SetItemString(kwargs, "label", PyString_FromString(name.c_str()));
 
-        PyObject* xarray = get_array(x);
-        PyObject* yarray = get_array(y);
+        PyObject* xarray = get_array(std::forward<E1>(x));
+        PyObject* yarray = get_array(std::forward<E2>(y));
 
         PyObject* pystring = PyString_FromString(format.c_str());
 
@@ -1163,10 +1150,10 @@ namespace detail {
 
 /*
     template<class E>
-    bool stem(const E& y, const std::string& format = "")
+    bool stem(E&& y, const std::string& format = "")
     {
         xt::xtensor<double, 1> x = xt::arange(y.size());
-        return stem(x, y, format);
+        return stem(std::move(x), std::forward<E>(y), format);
     }
 */
 
@@ -1342,14 +1329,14 @@ namespace detail {
     }
 /*
     template<class E>
-    inline void xticks(const E& ticks, const std::vector<std::string> &labels = {},
+    inline void xticks(E&& ticks, const std::vector<std::string> &labels = {},
                        const std::map<std::string, std::string>& keywords = {})
     {
         assert(labels.size() == 0 || ticks.size() == labels.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         // using numpy array
-        PyObject* ticksarray = get_array(ticks);
+        PyObject* ticksarray = get_array(std::forward<E>(ticks));
 
         PyObject* args;
         if(labels.size() == 0) {
@@ -1386,21 +1373,21 @@ namespace detail {
 */
 /*
     template<class E>
-    inline void xticks(const E& ticks, const std::map<std::string, std::string>& keywords)
+    inline void xticks(E&& ticks, const std::map<std::string, std::string>& keywords)
     {
-        xticks(ticks, {}, keywords);
+        xticks(std::forward<E>(ticks), {}, keywords);
     }
 */
 /*
     template<class E>
-    inline void yticks(const E& ticks, const std::vector<std::string> &labels = {},
+    inline void yticks(E&& ticks, const std::vector<std::string> &labels = {},
                        const std::map<std::string, std::string>& keywords = {})
     {
         assert(labels.size() == 0 || ticks.size() == labels.size());
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         // using numpy array
-        PyObject* ticksarray = get_array(ticks);
+        PyObject* ticksarray = get_array(std::forward<E>(ticks));
 
         PyObject* args;
         if(labels.size() == 0) {
@@ -1437,9 +1424,9 @@ namespace detail {
 */
 /*
     template<class E>
-    inline void yticks(const E& ticks, const std::map<std::string, std::string>& keywords)
+    inline void yticks(E&& ticks, const std::map<std::string, std::string>& keywords)
     {
-        yticks(ticks, {}, keywords);
+        yticks(std::forward<E>(ticks), {}, keywords);
     }
 */
     inline void subplot(long nrows, long ncols, long plot_number)
@@ -1610,7 +1597,7 @@ namespace detail {
     }
 
     inline void xkcd() {
-        //detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
+        detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
         PyObject* res;
         PyObject *kwargs = PyDict_New();
@@ -1830,7 +1817,6 @@ namespace detail {
             std::size_t size = std::distance(begin(ticks), end(ticks));
             std::array<std::size_t, 1> shape{size};
             xt::xtensor<double, 1> y(shape);
-            //for(auto x : ticks) y.push_back(f(x));
             std::size_t idx = 0;
             for(auto x : ticks) y[idx++] = f(x);
             return plot_impl<std::false_type>()(std::forward<Iterable>(ticks), std::move(y), format);
@@ -1880,7 +1866,7 @@ namespace detail {
     inline bool plot(std::vector<double> x, std::vector<double> y, const std::map<std::string, std::string>& keywords) {
         xt::xtensor<double, 1> x_adapt = xt::adapt(x);
         xt::xtensor<double, 1> y_adapt = xt::adapt(y);
-        return plot(x_adapt, y_adapt, keywords);
+        return plot(std::move(x_adapt), std::move(y_adapt), keywords);
     }
 */
 

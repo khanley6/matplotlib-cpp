@@ -19,6 +19,8 @@ int main()
     xt::xtensor<double, 1> x = xt::square(i);
     xt::xtensor<double, 1> y = xt::sin(2 * xt::numeric_constants<double>::PI * i / 360.0);
     xt::xtensor<double, 1> z = xt::log(i);
+
+    std::vector<double> vy(n, 5);
     
     // Set the size of output image = 1200x780 pixels
     plt::figure_size(1200, 780);
@@ -28,6 +30,8 @@ int main()
 
     // Plot a red dashed line from given x and y data.
     plt::plot(x, w+1, "r--");
+
+    plt::plot(x, vy, "g-.");
 
     // Plot a line whose name will show up as "log(x)" in the legend.
     plt::named_plot("log(x)", x, z);
