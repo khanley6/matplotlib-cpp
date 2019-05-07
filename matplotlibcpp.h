@@ -328,10 +328,20 @@ namespace detail {
     template <> struct select_npy_type<uint32_t> { const static NPY_TYPES type = NPY_ULONG; };
     template <> struct select_npy_type<uint64_t> { const static NPY_TYPES type = NPY_UINT64; };
 
+namespace detail {
+    template <class, template <class, class...> class>
+    struct is_instance : public std::false_type {};
+
+    template <class...Ts, template <class, class...> class U>
+    struct is_instance<U<Ts...>, U> : public std::true_type {};
+
+    template <class E>
+    using is_xfunction = is_instance<E, xt::xfunction>;
+} // namespace detail
 
     // xtensor implementation
     template<class E>
-    PyObject* get_array(const E& v) {
+    std::enable_if_t<xt::is_xexpression<E>::value && !detail::is_xfunction<E>::value, PyObject*> get_array(const E& v) {
         assert(v.dimension() <= 2);
         detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
 
@@ -397,11 +407,13 @@ namespace detail {
     // if WITHOUT_NUMPY is defined, this function accepts all calls to get_array
     template<class E>
 #ifndef WITHOUT_NUMPY
-    typename std::enable_if_t<!std::is_lvalue_reference<E>::value, PyObject*>
+    typename std::enable_if_t<detail::is_xfunction<std::decay_t<E>>::value
+                              || (!std::is_lvalue_reference<E>::value && xt::is_xexpression<E>::value)
+                              , PyObject*>
 #else
     typename std::enable_if_t<xt::is_xexpression<E>::value, PyObject*>
 #endif // WITHOUT_NUMPY
-    get_array (E&& v) {
+    get_array(E&& v) {
         PyObject* list;
         if (v.dimension() == 1) {
             list = PyList_New(v.size());
