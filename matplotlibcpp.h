@@ -327,64 +327,50 @@ namespace detail {
     template <> struct select_npy_type<uint16_t> { const static NPY_TYPES type = NPY_USHORT; };
     template <> struct select_npy_type<uint32_t> { const static NPY_TYPES type = NPY_ULONG; };
     template <> struct select_npy_type<uint64_t> { const static NPY_TYPES type = NPY_UINT64; };
+#endif
 
-namespace detail {
-    template <class, template <class, class...> class>
-    struct is_instance : public std::false_type {};
-
-    template <class...Ts, template <class, class...> class U>
-    struct is_instance<U<Ts...>, U> : public std::true_type {};
-
-    template <class E>
-    using is_xfunction = is_instance<E, xt::xfunction>;
-} // namespace detail
-
-    // xtensor implementation
-    template<class E>
-    std::enable_if_t<xt::is_xexpression<E>::value && !detail::is_xfunction<E>::value, PyObject*> get_array(const E& v) {
-        assert(v.dimension() <= 2);
-        detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
-
-        if (v.dimension() == 1) {
-            NPY_TYPES type = select_npy_type<typename std::decay_t<E>::value_type>::type;
-            if (type == NPY_NOTYPE) {
-                std::vector<double> vd(v.size());
-                npy_intp vsize = v.size();
-                std::copy(v.begin(), v.end(), vd.begin());
-                PyObject* varray = PyArray_SimpleNewFromData(1, &vsize, NPY_DOUBLE, (void*)(vd.data()));
-                return varray;
-            }
-
-            npy_intp vsize = v.size();
-            PyObject* varray = PyArray_SimpleNewFromData(1, &vsize, type, (void*)(v.data()));
-            return varray;
-        } else {
-            if (v.size() < 1) throw std::runtime_error("get_2d_array v too small");
-
-            npy_intp vsize[2] = {static_cast<npy_intp>(v.shape()[0]),
-                                 static_cast<npy_intp>(v.shape()[1])};
-
-            PyArrayObject *varray =
-                (PyArrayObject *)PyArray_SimpleNew(2, vsize, NPY_DOUBLE);
-
-            double *vd_begin = static_cast<double *>(PyArray_DATA(varray));
-
-            for (const std::size_t v_row_num : xt::arange(v.shape()[0])) {
-                auto v_row = xt::view(v, v_row_num);
-                if (v_row.size() != static_cast<size_t>(vsize[1]))
-                    throw std::runtime_error("Missmatched array size");
-                std::copy(v_row.begin(), v_row.end(), vd_begin);
-                vd_begin += vsize[1];
-            }
-
-            return reinterpret_cast<PyObject *>(varray);
-        }
-    }
-
-
+#ifdef WITHOUT_NUMPY
     // vector implementation
     template <typename Numeric>
-    PyObject* get_array(const std::vector<Numeric>& v) {
+    PyObject* get_array_impl(const std::vector<Numeric>& v) {
+        PyObject* list = PyList_New(v.size());
+        for(size_t i = 0; i < v.size(); ++i) {
+            PyList_SetItem(list, i, PyFloat_FromDouble(v.at(i)));
+        }
+        return list;
+    }
+
+    // lvalue xexpression implementation
+    template <class E>
+    PyObject* get_array_impl(const xt::xexpression<E>& e) {
+        const E& de = e.derived_cast();
+        // Implementation for evaluated lvalue using de
+
+        PyObject* list;
+        if (de.dimension() == 1) {
+            list = PyList_New(de.size());
+            for(size_t i = 0; i < de.size(); ++i) {
+                PyList_SetItem(list, i, PyFloat_FromDouble(de.at(i)));
+            }
+        } else {
+            std::size_t num_rows = de.shape()[0];
+            std::size_t num_cols = de.shape()[1];
+            list = PyList_New(num_rows);
+            for(size_t i = 0; i < num_rows; ++i) {
+                PyObject* row = PyList_New(num_cols);
+                PyList_SetItem(list, i, row);
+                for(size_t j = 0; j < num_cols; ++j) {
+                    PyList_SetItem(row, j, PyFloat_FromDouble(de.at(i,j)));
+                }
+            }
+        }
+        return list;
+    }
+
+#else // With numpy
+    // vector implementation
+    template <typename Numeric>
+    PyObject* get_array_impl(const std::vector<Numeric>& v) {
         detail::_interpreter::get();
         NPY_TYPES type = select_npy_type<Numeric>::type;
         if (type == NPY_NOTYPE) {
@@ -399,54 +385,90 @@ namespace detail {
         PyObject* varray = PyArray_SimpleNewFromData(1, &vsize, type, (void*)(v.data()));
         return varray;
     }
+
+    // lvalue xexpression implementation
+    template <class E>
+    PyObject* get_array_impl(const xt::xexpression<E>& e) {
+        const E& de = e.derived_cast();
+        // Implementation for evaluated lvalue using de
+        assert(de.dimension() <= 2);
+        detail::_interpreter::get();    //interpreter needs to be initialized for the numpy commands to work
+
+        if (de.dimension() == 1) {
+            NPY_TYPES type = select_npy_type<typename std::decay_t<E>::value_type>::type;
+            if (type == NPY_NOTYPE) {
+                std::vector<double> vd(de.size());
+                npy_intp vsize = de.size();
+                std::copy(de.begin(), de.end(), vd.begin());
+                PyObject* varray = PyArray_SimpleNewFromData(1, &vsize, NPY_DOUBLE, (void*)(vd.data()));
+                return varray;
+            }
+
+            npy_intp vsize = de.size();
+            PyObject* varray = PyArray_SimpleNewFromData(1, &vsize, type, (void*)(de.data()));
+            return varray;
+        } else {
+            if (de.size() < 1) throw std::runtime_error("get_2d_array v too small");
+
+            npy_intp vsize[2] = {static_cast<npy_intp>(de.shape()[0]),
+                                 static_cast<npy_intp>(de.shape()[1])};
+
+            PyArrayObject *varray =
+                (PyArrayObject *)PyArray_SimpleNew(2, vsize, NPY_DOUBLE);
+
+            double *vd_begin = static_cast<double *>(PyArray_DATA(varray));
+
+            for (const std::size_t v_row_num : xt::arange(de.shape()[0])) {
+                auto v_row = xt::view(de, v_row_num);
+                if (v_row.size() != static_cast<size_t>(vsize[1]))
+                    throw std::runtime_error("Missmatched array size");
+                std::copy(v_row.begin(), v_row.end(), vd_begin);
+                vd_begin += vsize[1];
+            }
+
+            return reinterpret_cast<PyObject *>(varray);
+        }
+    }
+
 #endif // WITHOUT_NUMPY
 
+    // rvalue xexpression implementation
+    template <class E>
+    PyObject* get_array_impl(xt::xexpression<E>&& e) {
+        E de = e.derived_cast();
 
-    // xtensor rvalue implementation
-    // if WITHOUT_NUMPY is not defined, this function is taked with copying rvalues
-    // if WITHOUT_NUMPY is defined, this function accepts all calls to get_array
-    template<class E>
-#ifndef WITHOUT_NUMPY
-    typename std::enable_if_t<detail::is_xfunction<std::decay_t<E>>::value
-                              || (!std::is_lvalue_reference<E>::value && xt::is_xexpression<E>::value)
-                              , PyObject*>
-#else
-    typename std::enable_if_t<xt::is_xexpression<E>::value, PyObject*>
-#endif // WITHOUT_NUMPY
-    get_array(E&& v) {
         PyObject* list;
-        if (v.dimension() == 1) {
-            list = PyList_New(v.size());
-            for(size_t i = 0; i < v.size(); ++i) {
-                PyList_SetItem(list, i, PyFloat_FromDouble(v.at(i)));
+        if (de.dimension() == 1) {
+            list = PyList_New(de.size());
+            for(size_t i = 0; i < de.size(); ++i) {
+                PyList_SetItem(list, i, PyFloat_FromDouble(de.at(i)));
             }
         } else {
-            std::size_t num_rows = v.shape()[0];
-            std::size_t num_cols = v.shape()[1];
+            std::size_t num_rows = de.shape()[0];
+            std::size_t num_cols = de.shape()[1];
             list = PyList_New(num_rows);
             for(size_t i = 0; i < num_rows; ++i) {
                 PyObject* row = PyList_New(num_cols);
                 PyList_SetItem(list, i, row);
                 for(size_t j = 0; j < num_cols; ++j) {
-                    PyList_SetItem(row, j, PyFloat_FromDouble(v.at(i,j)));
+                    PyList_SetItem(row, j, PyFloat_FromDouble(de.at(i,j)));
                 }
             }
         }
         return list;
     }
 
-
-#ifdef WITHOUT_NUMPY
-    // vector implementation
-    template <typename Numeric>
-    PyObject* get_array(const std::vector<Numeric>& v) {
-        PyObject* list = PyList_New(v.size());
-        for(size_t i = 0; i < v.size(); ++i) {
-            PyList_SetItem(list, i, PyFloat_FromDouble(v.at(i)));
-        }
-        return list;
+    // xtensor objects
+    template <class E, XTL_REQUIRES(xt::is_xexpression<E>)>
+    PyObject* get_array(E&& e) {
+        return get_array_impl(xt::eval(std::forward<E>(e)));
     }
-#endif
+
+    // vectors
+    template <class E, XTL_REQUIRES(xtl::negation<xt::is_xexpression<E>>)>
+    PyObject* get_array(E&& e) {
+        return get_array_impl(std::forward<E>(e));
+    }
 
 
     template<class E1, class E2>
