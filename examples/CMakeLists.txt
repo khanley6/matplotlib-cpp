@@ -12,7 +12,7 @@ foreach(file ${files})
     target_include_directories(${file_basename} PRIVATE
         ${PYTHON_INCLUDE_DIRS}
         ${xtensor_INCLUDE_DIRS}
-        ${CMAKE_SOURCE_DIR}
+        ${MPLCPP_INCLUDE_DIR}
     )
     if(NUMPY_FOUND)
         target_include_directories(${file_basename} PRIVATE
