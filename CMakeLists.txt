@@ -28,8 +28,21 @@ endif()
 set(MPLCPP_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 add_library(matplotlibcpp INTERFACE)
-target_include_directories(matplotlibcpp INTERFACE $<BUILD_INTERFACE:${MPLCPP_INCLUDE_DIR}>
-                                                   $<INSTALL_INTERFACE:include>)
+target_include_directories(matplotlibcpp INTERFACE
+                            $<BUILD_INTERFACE:${MPLCPP_INCLUDE_DIR}>
+                            $<BUILD_INTERFACE:${PYTHON_INCLUDE_DIRS}>
+                            $<BUILD_INTERFACE:${xtensor_INCLUDE_DIRS}>
+                            $<INSTALL_INTERFACE:include>
+                            $<INSTALL_INTERFACE:${PYTHON_INCLUDE_DIRS}>
+                            $<INSTALL_INTERFACE:${xtensor_INCLUDE_DIRS}>
+                           )
+if (USE_NUMPY)
+target_include_directories(matplotlibcpp INTERFACE
+                            $<BUILD_INTERFACE:${NUMPY_INCLUDE_DIRS}>
+                            $<INSTALL_INTERFACE:${NUMPY_INCLUDE_DIRS}>
+                           )
+endif()
+target_link_libraries(matplotlibcpp INTERFACE "${PYTHON_LIBRARIES}")
 
 if (BUILD_EXAMPLES)
     add_subdirectory(examples)
