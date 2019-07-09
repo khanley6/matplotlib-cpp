@@ -34,6 +34,7 @@ namespace detail {
     static std::string s_backend;
 
     struct _interpreter {
+        PyObject *s_python_function_imshow;
         PyObject *s_python_function_show;
         PyObject *s_python_function_close;
         PyObject *s_python_function_draw;
@@ -155,6 +156,7 @@ namespace detail {
             Py_DECREF(pylabname);
             if (!pylabmod) { throw std::runtime_error("Error loading module pylab!"); }
 
+            s_python_function_imshow = PyObject_GetAttrString(pymod, "imshow");
             s_python_function_show = PyObject_GetAttrString(pymod, "show");
             s_python_function_close = PyObject_GetAttrString(pymod, "close");
             s_python_function_draw = PyObject_GetAttrString(pymod, "draw");
@@ -196,6 +198,7 @@ namespace detail {
             s_python_function_subplots_adjust = PyObject_GetAttrString(pymod,"subplots_adjust");
 
             if (   !s_python_function_show
+                || !s_python_function_imshow
                 || !s_python_function_close
                 || !s_python_function_draw
                 || !s_python_function_pause
@@ -234,6 +237,7 @@ namespace detail {
                 ) { throw std::runtime_error("Couldn't find required function!"); }
 
             if (   !PyFunction_Check(s_python_function_show)
+                || !PyFunction_Check(s_python_function_imshow)
                 || !PyFunction_Check(s_python_function_close)
                 || !PyFunction_Check(s_python_function_draw)
                 || !PyFunction_Check(s_python_function_pause)
@@ -497,6 +501,40 @@ namespace detail {
 
         PyObject* res = PyObject_Call(
                 detail::_interpreter::get().s_python_function_plot, args, kwargs);
+
+        Py_DECREF(args);
+        Py_DECREF(kwargs);
+        if (res) Py_DECREF(res);
+
+        return res;
+    }
+
+    template<class E>
+    bool imshow(E&& im) {
+        assert(im.dimension() == 2);
+
+        //interpreter needs to be initialized for the numpy commands to work
+        detail::_interpreter::get();
+
+        // using numpy arrays
+        PyObject* imarray = get_array(std::forward<E>(im));
+
+        // construct positional args
+        PyObject* args = PyTuple_New(1);
+        PyTuple_SetItem(args, 0, imarray);
+
+        // construct keyword args
+        PyObject* kwargs = PyDict_New();
+        /*
+        for(auto it = keywords.cbegin(); it != keywords.cend(); ++it)
+        {
+            PyDict_SetItemString(kwargs, it->first.c_str(),
+                    PyString_FromString(it->second.c_str()));
+        }
+        */
+
+        PyObject* res = PyObject_Call(
+                detail::_interpreter::get().s_python_function_imshow, args, kwargs);
 
         Py_DECREF(args);
         Py_DECREF(kwargs);
