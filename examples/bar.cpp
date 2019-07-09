@@ -2,7 +2,7 @@
 
 #include <iostream>
 #include <string>
-#include "../matplotlibcpp.h"
+#include <matplotlibcpp.h>
 namespace plt = matplotlibcpp;
 
 #include <xtensor/xbuilder.hpp>
