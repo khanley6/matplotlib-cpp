@@ -510,7 +510,8 @@ namespace detail {
     }
 
     template<class E>
-    bool imshow(E&& im) {
+    bool imshow(E&& im, const std::map<std::string, std::string> &keywords =
+                        std::map<std::string, std::string>()) {
         assert(im.dimension() == 2);
 
         //interpreter needs to be initialized for the numpy commands to work
@@ -525,13 +526,11 @@ namespace detail {
 
         // construct keyword args
         PyObject* kwargs = PyDict_New();
-        /*
         for(auto it = keywords.cbegin(); it != keywords.cend(); ++it)
         {
             PyDict_SetItemString(kwargs, it->first.c_str(),
                     PyString_FromString(it->second.c_str()));
         }
-        */
 
         PyObject* res = PyObject_Call(
                 detail::_interpreter::get().s_python_function_imshow, args, kwargs);
